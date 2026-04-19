@@ -5,6 +5,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.2.0] — 2026-04-19
+
+### Added
+- **Catch-up card picking** — when a player rejoins mid-game and their existing
+  Unity `Player` object is reactivated, the mod now calculates how many cards they
+  need to reach the current average card level of other players and presents those
+  picks interactively through the existing `CardChoice` system, one card at a time,
+  so that health and stat updates are applied exactly as in a normal post-round pick.
+- **Sequential multi-joiner handling** — if several players join in the same round
+  boundary their catch-up sessions are run one after the other, preventing
+  concurrent `CardChoice.StartPicking` calls from interfering with each other.
+- **Per-pick timeout** — each catch-up pick has a 90-second deadline; if the
+  player does not respond the master client auto-selects the first available card
+  so the session never hangs indefinitely.
+- **`MidJoinManager.GetAverageCardCount`** — calculates the integer average
+  number of cards held by all active players, with an optional exclusion parameter
+  for the player who is catching up.
+- **`MidJoinManager.GetCardCount`** — safely reads `CharacterData.currentCards`
+  count for a given player.
+
+---
+
 ## [0.1.0] — 2026-04-19
 
 ### Added

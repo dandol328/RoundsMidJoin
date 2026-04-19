@@ -1,5 +1,8 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using HarmonyLib;
+using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
 
@@ -107,10 +110,9 @@ namespace RoundsMidJoin.Patches
         }
 
         /// <summary>
-        /// At the beginning of every new round, check whether any players have been
-        /// queued to join mid-game and log the fact.  Full spawn logic is deferred to
-        /// the concrete game-mode implementation; this hook exists as the integration
-        /// point for future extension.
+        /// At the beginning of every new round, activate any players who joined
+        /// mid-game and kick off sequential catch-up card-picking sessions so each
+        /// late joiner can reach the average card level before participating.
         /// </summary>
         [HarmonyPostfix]
         [HarmonyPatch("StartRound")]
@@ -121,13 +123,21 @@ namespace RoundsMidJoin.Patches
             Plugin.ModLogger.LogInfo(
                 "[RoundsMidJoin] Round started — processing pending mid-game joins.");
 
-            // Dequeue each waiting player and attempt to add them.
-            // The actual spawn/team-assignment logic lives inside HandleMidGameJoin.
+            // Activate every pending player and build the list of catch-up sessions.
+            var catchUpSessions = new List<(Player unityPlayer, int cardsNeeded)>();
+
             while (MidJoinManager.HasPendingJoins)
             {
                 var photonPlayer = MidJoinManager.DequeuePendingJoin();
-                HandleMidGameJoin(photonPlayer);
+                var (unityPlayer, cardsNeeded) = HandleMidGameJoin(photonPlayer);
+                if (unityPlayer != null && cardsNeeded > 0)
+                    catchUpSessions.Add((unityPlayer, cardsNeeded));
             }
+
+            // Run all catch-up sessions one after the other so that concurrent
+            // joiners never trigger overlapping CardChoice.StartPicking calls.
+            if (catchUpSessions.Count > 0)
+                Plugin.Instance.StartCoroutine(RunAllCatchUpPicking(catchUpSessions));
         }
 
         // -----------------------------------------------------------------
@@ -137,14 +147,12 @@ namespace RoundsMidJoin.Patches
         /// <summary>
         /// Attempts to bring a late-joining Photon player into the current match.
         ///
-        /// Implementation notes
-        /// --------------------
-        /// Full player spawning requires calling Photon RPC methods that are
-        /// tightly coupled to the concrete game-mode implementation.  The current
-        /// version logs the event and assigns the player to the smallest team; a
-        /// future version can extend this to spawn a character prefab.
+        /// Returns the activated Unity <see cref="Player"/> and the number of
+        /// catch-up cards needed to reach the current average.  Both values are
+        /// <c>null</c> / <c>0</c> when the player could not be found or spawned.
         /// </summary>
-        private static void HandleMidGameJoin(Photon.Realtime.Player photonPlayer)
+        private static (Player? unityPlayer, int cardsNeeded) HandleMidGameJoin(
+            Photon.Realtime.Player photonPlayer)
         {
             Plugin.ModLogger.LogInfo(
                 $"[RoundsMidJoin] Handling mid-game join for '{photonPlayer.NickName}'.");
@@ -154,18 +162,115 @@ namespace RoundsMidJoin.Patches
             var existing = MidJoinManager.FindUnityPlayer(photonPlayer);
             if (existing != null)
             {
-                Plugin.ModLogger.LogInfo(
-                    "[RoundsMidJoin] Found existing Unity Player — reactivating.");
                 existing.gameObject.SetActive(true);
-                return;
+
+                int avgCards = MidJoinManager.GetAverageCardCount(excluding: existing);
+                int myCards  = MidJoinManager.GetCardCount(existing);
+                int catchUp  = Math.Max(0, avgCards - myCards);
+
+                Plugin.ModLogger.LogInfo(
+                    $"[RoundsMidJoin] Reactivated existing Unity Player. " +
+                    $"Catch-up: avg={avgCards}, current={myCards}, picks={catchUp}.");
+
+                return (existing, catchUp);
             }
 
-            // Otherwise log that a full spawn is needed.  Spawning requires the
-            // master-client to instantiate the player prefab over the network, which
-            // is game-mode-specific and intentionally left as an extension point.
+            // Full mid-game spawn (for brand-new players with no prior Unity Player
+            // object) requires Photon-network instantiation that is game-mode
+            // specific.  This remains a roadmap item.
             Plugin.ModLogger.LogInfo(
-                "[RoundsMidJoin] No existing Unity Player found — " +
+                $"[RoundsMidJoin] No existing Unity Player found for '{photonPlayer.NickName}' — " +
                 "full mid-game spawn not yet implemented (see roadmap).");
+
+            return (null, 0);
+        }
+
+        /// <summary>
+        /// Runs all queued catch-up picking sessions one after the other so that
+        /// multiple simultaneous late joiners do not trigger concurrent
+        /// <c>CardChoice.StartPicking</c> calls.
+        /// </summary>
+        private static IEnumerator RunAllCatchUpPicking(
+            List<(Player unityPlayer, int cardsNeeded)> sessions)
+        {
+            foreach (var (player, cardsNeeded) in sessions)
+                yield return Plugin.Instance.StartCoroutine(
+                    DoCatchUpCardPickingCoroutine(player, cardsNeeded));
+        }
+
+        /// <summary>
+        /// Drives a sequential batch card-pick session for <paramref name="player"/>,
+        /// giving them <paramref name="cardsNeeded"/> picks via the existing
+        /// <c>CardChoice</c> system so that card effects (health, stats, etc.) are
+        /// applied identically to a normal post-round pick.
+        ///
+        /// Only the master client calls <c>StartPicking</c>; every other client sees
+        /// the card-selection UI via the usual Photon RPC path.  A per-pick timeout
+        /// (90 s) auto-selects the first available card so the session can never hang
+        /// indefinitely.
+        /// </summary>
+        private static IEnumerator DoCatchUpCardPickingCoroutine(Player player, int cardsNeeded)
+        {
+            Plugin.ModLogger.LogInfo(
+                $"[RoundsMidJoin] Catch-up picking started — " +
+                $"{cardsNeeded} card(s) for '{player.data.view.Owner?.NickName}'.");
+
+            const float PickTimeoutSeconds = 90f;
+            const float UiInitDelaySeconds  = 0.5f;
+            const float PostPickDelaySeconds = 0.3f;
+
+            for (int i = 0; i < cardsNeeded; i++)
+            {
+                if (CardChoice.instance == null) break;
+
+                Plugin.ModLogger.LogInfo(
+                    $"[RoundsMidJoin] Presenting catch-up pick {i + 1}/{cardsNeeded}.");
+
+                // Only the master client initiates the pick so the RPC is sent once.
+                if (PhotonNetwork.IsMasterClient)
+                    CardChoice.instance.StartPicking(player, 1);
+
+                // Give the UI one frame to initialise before we start polling.
+                yield return new WaitForSeconds(UiInitDelaySeconds);
+
+                // Poll until the card-choice system is no longer waiting on this
+                // player, or until the per-pick timeout elapses.
+                float elapsed = 0f;
+                while (elapsed < PickTimeoutSeconds)
+                {
+                    bool pickDone;
+                    try
+                    {
+                        pickDone = CardChoice.instance?.currentPicker != player;
+                    }
+                    catch (Exception ex)
+                    {
+                        // currentPicker field may not be accessible under that exact name;
+                        // treat as done and let the normal flow continue.
+                        Plugin.ModLogger.LogDebug(
+                            $"[RoundsMidJoin] Could not read currentPicker — {ex.Message}");
+                        pickDone = true;
+                    }
+
+                    if (pickDone) break;
+
+                    elapsed += Time.deltaTime;
+                    yield return null;
+                }
+
+                if (elapsed >= PickTimeoutSeconds)
+                {
+                    Plugin.ModLogger.LogWarning(
+                        $"[RoundsMidJoin] Pick {i + 1}/{cardsNeeded} timed out — " +
+                        "auto-selecting card 0.");
+                    if (PhotonNetwork.IsMasterClient)
+                        CardChoice.instance?.Pick(0, sendRPC: true);
+
+                    yield return new WaitForSeconds(PostPickDelaySeconds);
+                }
+            }
+
+            Plugin.ModLogger.LogInfo("[RoundsMidJoin] Catch-up card picking complete.");
         }
     }
 }

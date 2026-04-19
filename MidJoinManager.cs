@@ -124,5 +124,51 @@ namespace RoundsMidJoin
 
         /// <summary>Number of players currently tracked as disconnected.</summary>
         public static int DisconnectedCount => _disconnectedActors.Count;
+
+        // ---------------------------------------------------------------------------
+        // Card-count helpers (used for catch-up picking)
+        // ---------------------------------------------------------------------------
+
+        /// <summary>
+        /// Calculates the integer average number of cards held by all currently
+        /// active players, optionally excluding one player (e.g. the late joiner who
+        /// is about to catch up).  Returns 0 when there are no qualifying players.
+        /// </summary>
+        public static int GetAverageCardCount(Player? excluding = null)
+        {
+            if (PlayerManager.instance == null) return 0;
+
+            int total = 0;
+            int count = 0;
+
+            foreach (var p in PlayerManager.instance.players)
+            {
+                if (p == null || p == excluding) continue;
+                total += GetCardCount(p);
+                count++;
+            }
+
+            return count == 0 ? 0 : total / count;
+        }
+
+        /// <summary>
+        /// Returns the number of cards currently held by <paramref name="player"/>.
+        /// Falls back to 0 if the data cannot be read.
+        /// </summary>
+        public static int GetCardCount(Player player)
+        {
+            if (player?.data == null) return 0;
+            try
+            {
+                // CharacterData.currentCards is the standard Rounds field that
+                // tracks the list of cards a player has picked.
+                return player.data.currentCards?.Count ?? 0;
+            }
+            catch (Exception ex)
+            {
+                Plugin.ModLogger.LogDebug($"[RoundsMidJoin] GetCardCount: {ex.Message}");
+                return 0;
+            }
+        }
     }
 }
