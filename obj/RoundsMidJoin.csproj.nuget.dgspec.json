@@ -10,7 +10,7 @@
         "projectUniqueName": "/home/runner/work/RoundsMidJoin/RoundsMidJoin/RoundsMidJoin.csproj",
         "projectName": "RoundsMidJoin",
         "projectPath": "/home/runner/work/RoundsMidJoin/RoundsMidJoin/RoundsMidJoin.csproj",
-        "packagesPath": "/home/runner/.nuget/packages/",
+        "packagesPath": "/tmp/codeql-scratch-0c07b43931ce823b/dbs/csharp/working/packages",
         "outputPath": "/home/runner/work/RoundsMidJoin/RoundsMidJoin/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [

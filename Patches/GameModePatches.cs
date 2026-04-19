@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using HarmonyLib;
 using Photon.Pun;
 using Photon.Realtime;
+using UnboundLib.GameModes;
 using UnityEngine;
 
 namespace RoundsMidJoin.Patches
