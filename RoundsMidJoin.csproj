@@ -12,14 +12,21 @@
     <!--
       Set ROUNDS_PATH to your Rounds installation directory, e.g.:
         Windows: C:\Program Files (x86)\Steam\steamapps\common\Rounds
-        Linux:   ~/.steam/steam/steamapps/common/Rounds
+        Linux:   ~/.steam/steam/steamapps/common/ROUNDS
       You can also pass it via the environment: ROUNDS_PATH=... dotnet build
+
+      If BepInEx is installed separately (e.g. via r2modmanPlus), set BEPINEX_PATH
+      to the BepInEx directory, e.g.:
+        Linux (r2modmanPlus): ~/.config/r2modmanPlus-local/ROUNDS/profiles/Stock/BepInEx
+      Otherwise, BepInEx is assumed to be at $(ROUNDS_PATH)/BepInEx.
     -->
     <RoundsPath Condition="'$(ROUNDS_PATH)' != ''">$(ROUNDS_PATH)</RoundsPath>
     <RoundsPath Condition="'$(RoundsPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Rounds</RoundsPath>
     <GameManagedPath>$(RoundsPath)/ROUNDS_Data/Managed</GameManagedPath>
-    <BepInExCorePath>$(RoundsPath)/BepInEx/core</BepInExCorePath>
-    <BepInExPluginsPath>$(RoundsPath)/BepInEx/plugins</BepInExPluginsPath>
+    <BepInExCorePath Condition="'$(BEPINEX_PATH)' != ''">$(BEPINEX_PATH)/core</BepInExCorePath>
+    <BepInExCorePath Condition="'$(BepInExCorePath)' == ''">$(RoundsPath)/BepInEx/core</BepInExCorePath>
+    <BepInExPluginsPath Condition="'$(BEPINEX_PATH)' != ''">$(BEPINEX_PATH)/plugins</BepInExPluginsPath>
+    <BepInExPluginsPath Condition="'$(BepInExPluginsPath)' == ''">$(RoundsPath)/BepInEx/plugins</BepInExPluginsPath>
   </PropertyGroup>
 
   <ItemGroup>
