@@ -25,33 +25,33 @@
   <ItemGroup>
     <!-- BepInEx core (from game install; provides BaseUnityPlugin, BepInPlugin, etc.) -->
     <Reference Include="BepInEx">
-      <HintPath>$(BepInExCorePath)\BepInEx.dll</HintPath>
+      <HintPath>$(BepInExCorePath)/BepInEx.dll</HintPath>
       <Private>false</Private>
     </Reference>
 
     <!-- Unity Engine -->
     <Reference Include="UnityEngine">
-      <HintPath>$(GameManagedPath)\UnityEngine.dll</HintPath>
+      <HintPath>$(GameManagedPath)/UnityEngine.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>$(GameManagedPath)\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(GameManagedPath)/UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
 
     <!-- Photon Networking (PUN 2) -->
     <Reference Include="PhotonRealtime">
-      <HintPath>$(GameManagedPath)\PhotonRealtime.dll</HintPath>
+      <HintPath>$(GameManagedPath)/PhotonRealtime.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="PhotonUnityNetworking">
-      <HintPath>$(GameManagedPath)\PhotonUnityNetworking.dll</HintPath>
+      <HintPath>$(GameManagedPath)/PhotonUnityNetworking.dll</HintPath>
       <Private>false</Private>
     </Reference>
 
     <!-- Main game assembly -->
     <Reference Include="Assembly-CSharp">
-      <HintPath>$(GameManagedPath)\Assembly-CSharp.dll</HintPath>
+      <HintPath>$(GameManagedPath)/Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
     </Reference>
 
@@ -59,12 +59,12 @@
       UnboundLib — utility library required by many Rounds mods (including RoundsWithFriends).
       Only needed if you call Unbound.RegisterHandshake or other UnboundLib APIs.
     -->
-    <Reference Include="UnboundLib" Condition="Exists('$(BepInExPluginsPath)\UnboundLib.dll')">
-      <HintPath>$(BepInExPluginsPath)\UnboundLib.dll</HintPath>
+    <Reference Include="UnboundLib" Condition="Exists('$(BepInExPluginsPath)/UnboundLib.dll')">
+      <HintPath>$(BepInExPluginsPath)/UnboundLib.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="UnboundLib" Condition="Exists('$(BepInExPluginsPath)\UnboundLib\UnboundLib.dll')">
-      <HintPath>$(BepInExPluginsPath)\UnboundLib\UnboundLib.dll</HintPath>
+    <Reference Include="UnboundLib" Condition="Exists('$(BepInExPluginsPath)/UnboundLib/UnboundLib.dll')">
+      <HintPath>$(BepInExPluginsPath)/UnboundLib/UnboundLib.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
