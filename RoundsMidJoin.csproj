@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>RoundsMidJoin</AssemblyName>
+    <RootNamespace>RoundsMidJoin</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+
+    <!--
+      Set ROUNDS_PATH to your Rounds installation directory, e.g.:
+        Windows: C:\Program Files (x86)\Steam\steamapps\common\Rounds
+        Linux:   ~/.steam/steam/steamapps/common/Rounds
+      You can also pass it via the environment: ROUNDS_PATH=... dotnet build
+    -->
+    <RoundsPath Condition="'$(ROUNDS_PATH)' != ''">$(ROUNDS_PATH)</RoundsPath>
+    <RoundsPath Condition="'$(RoundsPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Rounds</RoundsPath>
+    <GameManagedPath>$(RoundsPath)\Rounds_Data\Managed</GameManagedPath>
+    <BepInExCorePath>$(RoundsPath)\BepInEx\core</BepInExCorePath>
+    <BepInExPluginsPath>$(RoundsPath)\BepInEx\plugins</BepInExPluginsPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- BepInEx core (from game install; provides BaseUnityPlugin, BepInPlugin, etc.) -->
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExCorePath)\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Unity Engine -->
+    <Reference Include="UnityEngine">
+      <HintPath>$(GameManagedPath)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(GameManagedPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Photon Networking (PUN 2) -->
+    <Reference Include="PhotonRealtime">
+      <HintPath>$(GameManagedPath)\PhotonRealtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="PhotonUnityNetworking">
+      <HintPath>$(GameManagedPath)\PhotonUnityNetworking.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Main game assembly -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GameManagedPath)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!--
+      UnboundLib — utility library required by many Rounds mods (including RoundsWithFriends).
+      Only needed if you call Unbound.RegisterHandshake or other UnboundLib APIs.
+    -->
+    <Reference Include="UnboundLib" Condition="Exists('$(BepInExPluginsPath)\UnboundLib.dll')">
+      <HintPath>$(BepInExPluginsPath)\UnboundLib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnboundLib" Condition="Exists('$(BepInExPluginsPath)\UnboundLib\UnboundLib.dll')">
+      <HintPath>$(BepInExPluginsPath)\UnboundLib\UnboundLib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony" Version="2.3.3" />
+  </ItemGroup>
+
+</Project>
