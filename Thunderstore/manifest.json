@@ -1,0 +1,10 @@
+{
+  "name": "RoundsMidJoin",
+  "version_number": "0.2.0",
+  "website_url": "https://github.com/dandol328/RoundsMidJoin",
+  "description": "Allows players to leave and rejoin Rounds mid-game without ending the current session. Compatible with RoundsWithFriends.",
+  "dependencies": [
+    "BepInEx-BepInExPack_ROUNDS-5.4.1905",
+    "willis81808-UnboundLib-3.2.9"
+  ]
+}
