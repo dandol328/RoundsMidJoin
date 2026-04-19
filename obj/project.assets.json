@@ -474,7 +474,7 @@
     ]
   },
   "packageFolders": {
-    "/home/runner/.nuget/packages/": {}
+    "/tmp/codeql-scratch-0c07b43931ce823b/dbs/csharp/working/packages": {}
   },
   "project": {
     "version": "1.0.0",
@@ -482,7 +482,7 @@
       "projectUniqueName": "/home/runner/work/RoundsMidJoin/RoundsMidJoin/RoundsMidJoin.csproj",
       "projectName": "RoundsMidJoin",
       "projectPath": "/home/runner/work/RoundsMidJoin/RoundsMidJoin/RoundsMidJoin.csproj",
-      "packagesPath": "/home/runner/.nuget/packages/",
+      "packagesPath": "/tmp/codeql-scratch-0c07b43931ce823b/dbs/csharp/working/packages",
       "outputPath": "/home/runner/work/RoundsMidJoin/RoundsMidJoin/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
@@ -534,6 +534,36 @@
     }
   },
   "logs": [
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json.\n  Resource temporarily unavailable (nuget.bepinex.dev:443)\n  Resource temporarily unavailable"
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json.\n  Resource temporarily unavailable (nuget.bepinex.dev:443)\n  Resource temporarily unavailable"
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json.\n  Resource temporarily unavailable (nuget.bepinex.dev:443)\n  Resource temporarily unavailable"
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json.\n  Resource temporarily unavailable (nuget.bepinex.dev:443)\n  Resource temporarily unavailable"
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json.\n  Resource temporarily unavailable (nuget.bepinex.dev:443)\n  Resource temporarily unavailable"
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json.\n  Resource temporarily unavailable (nuget.bepinex.dev:443)\n  Resource temporarily unavailable"
+    },
     {
       "code": "NU1900",
       "level": "Warning",

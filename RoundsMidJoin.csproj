@@ -64,7 +64,11 @@
 
     <!--
       UnboundLib — utility library required by many Rounds mods (including RoundsWithFriends).
-      Only needed if you call Unbound.RegisterHandshake or other UnboundLib APIs.
+      Required for GameModeHandler (UnboundLib.GameModes namespace) and other UnboundLib APIs.
+      Multiple paths are checked to support different installation layouts:
+        - Direct in plugins directory (manual install)
+        - UnboundLib subfolder (some package managers)
+        - willis81808-UnboundLib subfolder (r2modmanPlus / Thunderstore naming convention)
     -->
     <Reference Include="UnboundLib" Condition="Exists('$(BepInExPluginsPath)/UnboundLib.dll')">
       <HintPath>$(BepInExPluginsPath)/UnboundLib.dll</HintPath>
@@ -72,6 +76,10 @@
     </Reference>
     <Reference Include="UnboundLib" Condition="Exists('$(BepInExPluginsPath)/UnboundLib/UnboundLib.dll')">
       <HintPath>$(BepInExPluginsPath)/UnboundLib/UnboundLib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnboundLib" Condition="Exists('$(BepInExPluginsPath)/willis81808-UnboundLib/UnboundLib.dll')">
+      <HintPath>$(BepInExPluginsPath)/willis81808-UnboundLib/UnboundLib.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
