@@ -1,0 +1,3 @@
+/home/runner/work/RoundsMidJoin/RoundsMidJoin/obj/Debug/net472/RoundsMidJoin.GeneratedMSBuildEditorConfig.editorconfig
+/home/runner/work/RoundsMidJoin/RoundsMidJoin/obj/Debug/net472/RoundsMidJoin.csproj.CoreCompileInputs.cache
+/home/runner/work/RoundsMidJoin/RoundsMidJoin/obj/Debug/net472/RoundsMidJoin.sourcelink.json
