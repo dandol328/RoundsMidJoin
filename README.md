@@ -52,6 +52,64 @@ ROUNDS_PATH="$HOME/.steam/steam/steamapps/common/Rounds" dotnet build -c Release
 
 The compiled DLL will appear in `bin/Release/net472/RoundsMidJoin.dll`.
 
+### Distrobox (Linux — containerised build)
+
+[Distrobox](https://github.com/89luca89/distrobox) lets you build the mod inside
+a container without configuring .NET or Mono on your host system.  Your home
+directory is shared automatically, so the built DLL is immediately available on
+the host.
+
+**1. Create and enter a container**
+
+```sh
+distrobox create --name rounds-build --image fedora:latest
+distrobox enter rounds-build
+```
+
+**2. Install the .NET SDK and Mono inside the container**
+
+The project targets `net472` (.NET Framework 4.7.2), so both the .NET SDK and
+Mono (which provides the Framework reference assemblies) are required.
+
+```sh
+# Fedora / RHEL
+sudo dnf install -y dotnet-sdk-8.0 mono-devel
+
+# Debian / Ubuntu
+sudo apt-get update && sudo apt-get install -y dotnet-sdk-8.0 mono-devel
+```
+
+**3. Set `ROUNDS_PATH` to the game directory**
+
+Distrobox mounts your host home directory inside the container, so the default
+Steam path works without any extra bind-mounts:
+
+```sh
+export ROUNDS_PATH="$HOME/.steam/steam/steamapps/common/Rounds"
+```
+
+If the game is installed on a different drive or path, export the correct value
+before building.
+
+**4. Build**
+
+From the repository root inside the container:
+
+```sh
+dotnet build -c Release
+```
+
+**5. Retrieve the built DLL**
+
+The compiled plugin is written to:
+
+```
+bin/Release/net472/RoundsMidJoin.dll
+```
+
+Because Distrobox shares your home directory, this path is identical on the
+host — no manual copy step is needed.
+
 ## How it works
 
 ### Leave handling
