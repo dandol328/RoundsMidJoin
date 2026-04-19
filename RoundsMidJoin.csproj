@@ -17,9 +17,9 @@
     -->
     <RoundsPath Condition="'$(ROUNDS_PATH)' != ''">$(ROUNDS_PATH)</RoundsPath>
     <RoundsPath Condition="'$(RoundsPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Rounds</RoundsPath>
-    <GameManagedPath>$(RoundsPath)\Rounds_Data\Managed</GameManagedPath>
-    <BepInExCorePath>$(RoundsPath)\BepInEx\core</BepInExCorePath>
-    <BepInExPluginsPath>$(RoundsPath)\BepInEx\plugins</BepInExPluginsPath>
+    <GameManagedPath>$(RoundsPath)/Rounds_Data/Managed</GameManagedPath>
+    <BepInExCorePath>$(RoundsPath)/BepInEx/core</BepInExCorePath>
+    <BepInExPluginsPath>$(RoundsPath)/BepInEx/plugins</BepInExPluginsPath>
   </PropertyGroup>
 
   <ItemGroup>
