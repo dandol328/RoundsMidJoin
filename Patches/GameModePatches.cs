@@ -99,6 +99,9 @@ namespace RoundsMidJoin.Patches
     [HarmonyPatch("UnboundLib.GameModes.GameModeHandler")]
     internal static class GameModeHandler_Patches
     {
+        private static readonly System.Reflection.FieldInfo SpawnedCardsField =
+            AccessTools.Field(typeof(CardChoice), "spawnedCards");
+
         /// <summary>
         /// When a brand-new match starts, wipe all stale disconnect / pending-join
         /// tracking so the previous session cannot contaminate the new one.
@@ -230,8 +233,12 @@ namespace RoundsMidJoin.Patches
                 if (PhotonNetwork.IsMasterClient)
                 {
                     var instance = CardChoice.instance;
-                    if (instance != null && instance.cardOptions != null && instance.cardOptions.Count > 0)
-                        instance.Pick(instance.cardOptions[0]);
+                    if (instance != null)
+                    {
+                        var spawnedCards = (List<GameObject>)SpawnedCardsField.GetValue(instance);
+                        if (spawnedCards != null && spawnedCards.Count > 0)
+                            instance.Pick(spawnedCards[0], true);
+                    }
                 }
 
                 yield return new WaitForSeconds(PostPickDelaySeconds);

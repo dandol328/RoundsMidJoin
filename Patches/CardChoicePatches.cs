@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using HarmonyLib;
 using Photon.Pun;
+using UnityEngine;
 
 namespace RoundsMidJoin.Patches
 {
@@ -30,6 +32,9 @@ namespace RoundsMidJoin.Patches
     [HarmonyPatch(typeof(CardChoice))]
     internal static class CardChoicePatches
     {
+        private static readonly System.Reflection.FieldInfo SpawnedCardsField =
+            AccessTools.Field(typeof(CardChoice), "spawnedCards");
+
         /// <summary>
         /// Intercepts the start of a player's card-pick turn.
         /// Returns <c>false</c> (skip original method) when the target player has
@@ -52,11 +57,15 @@ namespace RoundsMidJoin.Patches
             // exactly once.
             if (PhotonNetwork.IsMasterClient)
             {
-                // CardChoice.Pick takes the card GameObject to pick.  Picking the
-                // first offered card (cardOptions[0]) is a safe, deterministic default.
+                // CardChoice stores spawned card GameObjects in the private field
+                // "spawnedCards".  Picking the first one is a safe, deterministic default.
                 var instance = CardChoice.instance;
-                if (instance != null && instance.cardOptions != null && instance.cardOptions.Count > 0)
-                    instance.Pick(instance.cardOptions[0]);
+                if (instance != null)
+                {
+                    var spawnedCards = (List<GameObject>)SpawnedCardsField.GetValue(instance);
+                    if (spawnedCards != null && spawnedCards.Count > 0)
+                        instance.Pick(spawnedCards[0], true);
+                }
             }
 
             // Suppress the original method on all clients — there is no local
