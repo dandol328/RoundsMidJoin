@@ -1,4 +1,3 @@
-using System;
 using HarmonyLib;
 using Photon.Pun;
 
@@ -56,51 +55,12 @@ namespace RoundsMidJoin.Patches
                 // CardChoice.Pick takes a card index and a flag indicating whether
                 // to broadcast the pick via RPC.  Picking index 0 (the first
                 // offered card) is a safe, deterministic default.
-                CardChoice.instance?.Pick(0, sendRPC: true);
+                CardChoice.instance?.Pick(0);
             }
 
             // Suppress the original method on all clients — there is no local
             // player to show the selection UI to.
             return false;
-        }
-
-        /// <summary>
-        /// After every card pick, check whether the *next* player in line has
-        /// already disconnected.  If the game enters a coroutine-wait state for a
-        /// ghost player, nudge it forward by calling <c>StartPicking</c> via the
-        /// instance so our prefix runs and resolves it.
-        ///
-        /// This is a safety net for code paths that advance to the next picker
-        /// without going through the prefix-patched entry point.
-        /// </summary>
-        [HarmonyPostfix]
-        [HarmonyPatch("Pick")]
-        private static void Pick_Postfix()
-        {
-            if (!PhotonNetwork.IsMasterClient) return;
-            if (PlayerManager.instance == null) return;
-
-            // Walk the player list; if the current picking player (identified by the
-            // game's internal state) is disconnected, trigger the skip.
-            // CardChoice.instance.currentPicker is the most likely field name — adapt
-            // to the actual decompiled name if it differs.
-            try
-            {
-                var picker = CardChoice.instance?.currentPicker;
-                if (picker != null && MidJoinManager.IsPlayerDisconnected(picker))
-                {
-                    Plugin.ModLogger.LogInfo(
-                        "[RoundsMidJoin] Post-pick: next picker is disconnected — auto-resolving.");
-                    CardChoice.instance?.Pick(0, sendRPC: true);
-                }
-            }
-            catch (Exception ex)
-            {
-                // currentPicker field may not exist under that exact name; the
-                // prefix patch already covers the primary code path.
-                Plugin.ModLogger.LogDebug(
-                    $"[RoundsMidJoin] Pick_Postfix: could not read currentPicker — {ex.Message}");
-            }
         }
     }
 }

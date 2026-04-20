@@ -39,7 +39,7 @@ namespace RoundsMidJoin
 
         private void OnDestroy()
         {
-            _harmony?.UnpatchSelf();
+            _harmony?.UnpatchAll(ModId);
         }
     }
 }

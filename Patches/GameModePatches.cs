@@ -205,10 +205,8 @@ namespace RoundsMidJoin.Patches
         /// <c>CardChoice</c> system so that card effects (health, stats, etc.) are
         /// applied identically to a normal post-round pick.
         ///
-        /// Only the master client calls <c>StartPicking</c>; every other client sees
-        /// the card-selection UI via the usual Photon RPC path.  A per-pick timeout
-        /// (90 s) auto-selects the first available card so the session can never hang
-        /// indefinitely.
+        /// Only the master client calls <c>Pick</c>; every other client sees
+        /// the result via the usual Photon RPC path.
         /// </summary>
         private static IEnumerator DoCatchUpCardPickingCoroutine(Player player, int cardsNeeded)
         {
@@ -216,59 +214,23 @@ namespace RoundsMidJoin.Patches
                 $"[RoundsMidJoin] Catch-up picking started — " +
                 $"{cardsNeeded} card(s) for '{player.data.view.Owner?.NickName}'.");
 
-            const float PickTimeoutSeconds = 90f;
-            const float UiInitDelaySeconds  = 0.5f;
-            const float PostPickDelaySeconds = 0.3f;
+            const float PostPickDelaySeconds = 1.0f;
 
             for (int i = 0; i < cardsNeeded; i++)
             {
                 if (CardChoice.instance == null) break;
 
                 Plugin.ModLogger.LogInfo(
-                    $"[RoundsMidJoin] Presenting catch-up pick {i + 1}/{cardsNeeded}.");
+                    $"[RoundsMidJoin] Auto-picking catch-up card {i + 1}/{cardsNeeded}.");
 
-                // Only the master client initiates the pick so the RPC is sent once.
+                // Only the master client drives the pick so the RPC is sent once.
+                // A fixed delay is used here because CardChoice.currentPicker does not
+                // exist in the current game assembly, so polling for pick completion is
+                // not possible. 1 second is conservative enough for RPC propagation.
                 if (PhotonNetwork.IsMasterClient)
-                    CardChoice.instance.StartPicking(player, 1);
+                    CardChoice.instance.Pick(0);
 
-                // Give the UI one frame to initialise before we start polling.
-                yield return new WaitForSeconds(UiInitDelaySeconds);
-
-                // Poll until the card-choice system is no longer waiting on this
-                // player, or until the per-pick timeout elapses.
-                float elapsed = 0f;
-                while (elapsed < PickTimeoutSeconds)
-                {
-                    bool pickDone;
-                    try
-                    {
-                        pickDone = CardChoice.instance?.currentPicker != player;
-                    }
-                    catch (Exception ex)
-                    {
-                        // currentPicker field may not be accessible under that exact name;
-                        // treat as done and let the normal flow continue.
-                        Plugin.ModLogger.LogDebug(
-                            $"[RoundsMidJoin] Could not read currentPicker — {ex.Message}");
-                        pickDone = true;
-                    }
-
-                    if (pickDone) break;
-
-                    elapsed += Time.deltaTime;
-                    yield return null;
-                }
-
-                if (elapsed >= PickTimeoutSeconds)
-                {
-                    Plugin.ModLogger.LogWarning(
-                        $"[RoundsMidJoin] Pick {i + 1}/{cardsNeeded} timed out — " +
-                        "auto-selecting card 0.");
-                    if (PhotonNetwork.IsMasterClient)
-                        CardChoice.instance?.Pick(0, sendRPC: true);
-
-                    yield return new WaitForSeconds(PostPickDelaySeconds);
-                }
+                yield return new WaitForSeconds(PostPickDelaySeconds);
             }
 
             Plugin.ModLogger.LogInfo("[RoundsMidJoin] Catch-up card picking complete.");
