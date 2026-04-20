@@ -9,17 +9,17 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 
-    <!--
+    <!--<br/>  
       Set ROUNDS_PATH to your Rounds installation directory, e.g.:
         Windows: C:\Program Files (x86)\Steam\steamapps\common\Rounds
-        Linux:   ~/.steam/steam/steamapps/common/ROUNDS
+        Linux:   /var/home/dan/.local/share/Steam/steamapps/common/ROUNDS/
       You can also pass it via the environment: ROUNDS_PATH=... dotnet build
 
       If BepInEx is installed separately (e.g. via r2modmanPlus), set BEPINEX_PATH
       to the BepInEx directory, e.g.:
-        Linux (r2modmanPlus): ~/.config/r2modmanPlus-local/ROUNDS/profiles/Stock/BepInEx
+        Linux (r2modmanPlus): /home/dan/.config/r2modmanPlus-local/ROUNDS/profiles/Stock/BepInEx
       Otherwise, BepInEx is assumed to be at $(ROUNDS_PATH)/BepInEx.
-    -->
+    --><br/>
     <RoundsPath Condition="'$(ROUNDS_PATH)' != ''">$(ROUNDS_PATH)</RoundsPath>
     <RoundsPath Condition="'$(RoundsPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Rounds</RoundsPath>
     <GameManagedPath>$(RoundsPath)/ROUNDS_Data/Managed</GameManagedPath>
