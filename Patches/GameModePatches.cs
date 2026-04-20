@@ -96,7 +96,7 @@ namespace RoundsMidJoin.Patches
     /// Patches on the abstract <c>GameModeHandler</c> base class that are relevant
     /// regardless of which concrete game mode is active.
     /// </summary>
-    [HarmonyPatch(typeof(GameModeHandler))]
+    [HarmonyPatch("UnboundLib.GameModes.GameModeHandler")]
     internal static class GameModeHandler_Patches
     {
         /// <summary>
