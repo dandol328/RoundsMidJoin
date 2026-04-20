@@ -124,8 +124,9 @@ iteration) instead of letting the game declare an erroneous winner.
 ### Card-selection
 
 `CardChoice.StartPicking` is prefix-patched: if it's a disconnected player's
-turn, the master client immediately calls `CardChoice.Pick(0, sendRPC: true)` so
-the round can advance without waiting for input that will never arrive.
+turn, the master client reads the private `spawnedCards` field via reflection and
+calls `CardChoice.Pick(spawnedCards[0], sendRPC: true)` so the round can advance
+without waiting for input that will never arrive.
 
 ### Mid-game joins
 
