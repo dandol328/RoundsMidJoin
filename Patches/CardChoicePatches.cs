@@ -52,10 +52,11 @@ namespace RoundsMidJoin.Patches
             // exactly once.
             if (PhotonNetwork.IsMasterClient)
             {
-                // CardChoice.Pick takes a card index and a flag indicating whether
-                // to broadcast the pick via RPC.  Picking index 0 (the first
-                // offered card) is a safe, deterministic default.
-                CardChoice.instance?.Pick(0);
+                // CardChoice.Pick takes the card GameObject to pick.  Picking the
+                // first offered card (cardOptions[0]) is a safe, deterministic default.
+                var instance = CardChoice.instance;
+                if (instance != null && instance.cardOptions != null && instance.cardOptions.Count > 0)
+                    instance.Pick(instance.cardOptions[0]);
             }
 
             // Suppress the original method on all clients — there is no local

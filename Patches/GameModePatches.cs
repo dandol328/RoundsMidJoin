@@ -228,7 +228,11 @@ namespace RoundsMidJoin.Patches
                 // exist in the current game assembly, so polling for pick completion is
                 // not possible. 1 second is conservative enough for RPC propagation.
                 if (PhotonNetwork.IsMasterClient)
-                    CardChoice.instance.Pick(0);
+                {
+                    var instance = CardChoice.instance;
+                    if (instance != null && instance.cardOptions != null && instance.cardOptions.Count > 0)
+                        instance.Pick(instance.cardOptions[0]);
+                }
 
                 yield return new WaitForSeconds(PostPickDelaySeconds);
             }
