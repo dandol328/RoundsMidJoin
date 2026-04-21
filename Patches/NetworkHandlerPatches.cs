@@ -34,6 +34,10 @@ namespace RoundsMidJoin.Patches
         private static void OnPlayerLeftRoom_Prefix(Photon.Realtime.Player other)
         {
             MidJoinManager.HandlePlayerLeft(other);
+
+            // If this player was in the middle of their card-pick turn, auto-pick
+            // for them so the selection phase does not freeze.
+            CardChoicePatches.HandleDisconnect(other);
         }
 
         /// <summary>
