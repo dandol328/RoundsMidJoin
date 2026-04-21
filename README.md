@@ -47,7 +47,7 @@ $env:ROUNDS_PATH = "C:\Program Files (x86)\Steam\steamapps\common\Rounds"
 dotnet build -c Release
 
 # Linux / macOS
-ROUNDS_PATH="$HOME/.steam/steam/steamapps/common/Rounds" dotnet build -c Release
+ROUNDS_PATH="$HOME/.steam/steam/steamapps/common/ROUNDS" BEPINEX_PATH="$HOME/.config/r2modmanPlus-local/ROUNDS/profiles/Stock/BepInEx" dotnet build -c Release
 ```
 
 The compiled DLL will appear in `bin/Release/net472/RoundsMidJoin.dll`.
