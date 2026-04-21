@@ -14,15 +14,27 @@ namespace RoundsMidJoin.Patches
     /// -------
     /// After a round ends the winning team picks cards one player at a time.  If one
     /// of those players has disconnected the game waits indefinitely for input that
-    /// will never arrive, freezing the session for everyone.
+    /// will never arrive, freezing the session for everyone.  Two distinct sub-cases
+    /// exist:
     ///
-    /// Solution
-    /// --------
-    /// Prefix-patch <c>StartPicking</c>: if the player whose turn it is has
-    /// disconnected, the <em>master client</em> immediately auto-picks the first
-    /// available card on their behalf, then returns <c>false</c> to skip the normal
-    /// UI flow.  Non-master clients simply suppress the call so they don't show UI
-    /// for a ghost player either.
+    ///   1. The player disconnects <em>while</em> cards are already on-screen for
+    ///      their turn (mid-turn disconnect).  Handled by <see cref="HandleDisconnect"/>
+    ///      which is called from <see cref="NetworkHandlerPatches"/> the moment the
+    ///      leave event fires.
+    ///
+    ///   2. The player disconnects <em>before</em> their turn (they are queued but
+    ///      not yet the active picker).  Handled by the <c>StartPicking</c> Prefix +
+    ///      Postfix pair below.
+    ///
+    /// Solution for case 2
+    /// -------------------
+    /// Prefix: if the player whose turn it is has disconnected:
+    ///   • Master client — returns <c>true</c> so the original method still runs and
+    ///     spawns the card GameObjects into <c>spawnedCards</c>.  Without this step
+    ///     <c>spawnedCards</c> would be empty and the auto-pick would be a no-op.
+    ///   • Non-master clients — returns <c>false</c> to suppress the UI entirely.
+    /// Postfix (master only): immediately calls <c>DoAutoPick()</c> once the cards
+    /// are spawned, so the turn resolves without waiting for player input.
     ///
     /// Compatibility
     /// -------------
@@ -45,15 +57,25 @@ namespace RoundsMidJoin.Patches
         /// All writes happen on Unity's main thread: <c>StartPicking</c> is called by
         /// the game loop, and <c>OnPlayerLeftRoom</c> (which calls
         /// <see cref="HandleDisconnect"/>) is dispatched by Photon on the main thread.
-        /// No additional synchronisation is needed.
+        /// The backing field is marked <c>volatile</c> as an extra safety net in case
+        /// either path is ever dispatched from a different thread.
         /// </remarks>
-        internal static Player? CurrentPickingPlayer { get; private set; }
+        private static volatile Player? _currentPickingPlayer;
+        internal static Player? CurrentPickingPlayer => _currentPickingPlayer;
 
         /// <summary>
         /// Intercepts the start of a player's card-pick turn.
-        /// Returns <c>false</c> (skip original method) when the target player has
-        /// disconnected; otherwise records them as the current picker and returns
-        /// <c>true</c> so vanilla behaviour runs.
+        ///
+        /// For a <em>live</em> player: records them as the current picker and
+        /// returns <c>true</c> so the vanilla method runs normally.
+        ///
+        /// For a <em>disconnected</em> player:
+        ///   • Master client — returns <c>true</c> so the original method still
+        ///     executes and populates <c>spawnedCards</c>.  The matching
+        ///     <see cref="StartPicking_Postfix"/> then immediately picks the first
+        ///     card once it is available.
+        ///   • Non-master clients — returns <c>false</c> to suppress the selection
+        ///     UI entirely; they will receive the pick result via Photon RPC.
         /// </summary>
         [HarmonyPrefix]
         [HarmonyPatch("StartPicking")]
@@ -65,19 +87,36 @@ namespace RoundsMidJoin.Patches
             if (!MidJoinManager.IsPlayerDisconnected(player))
             {
                 // Live player — record as the current picker and proceed normally.
-                CurrentPickingPlayer = player;
+                _currentPickingPlayer = player;
                 return true;
             }
 
             Plugin.ModLogger.LogInfo(
                 "[RoundsMidJoin] Disconnected player's card-pick turn detected — auto-resolving.");
 
-            CurrentPickingPlayer = null;
-            DoAutoPick();
+            _currentPickingPlayer = null;
 
-            // Suppress the original method on all clients — there is no local
-            // player to show the selection UI to.
-            return false;
+            // Master client: allow the original to run so that cards are spawned,
+            // then the Postfix will immediately pick.
+            // Non-master clients: suppress the original — no UI should appear.
+            return PhotonNetwork.IsMasterClient;
+        }
+
+        /// <summary>
+        /// Fires after <c>StartPicking</c> on the master client.
+        /// If the player whose turn just started is disconnected the cards have now
+        /// been spawned, so we can safely call <see cref="DoAutoPick"/> to advance
+        /// the selection phase without waiting for input that will never arrive.
+        /// </summary>
+        [HarmonyPostfix]
+        [HarmonyPatch("StartPicking")]
+        private static void StartPicking_Postfix(Player player)
+        {
+            if (player == null) return;
+            if (!MidJoinManager.IsPlayerDisconnected(player)) return;
+            if (!PhotonNetwork.IsMasterClient) return;
+
+            DoAutoPick();
         }
 
         /// <summary>
@@ -100,14 +139,14 @@ namespace RoundsMidJoin.Patches
             catch (Exception ex)
             {
                 Plugin.ModLogger.LogWarning(
-                    $"[RoundsMidJoin] HandleDisconnect owner-check threw: {ex.Message}");
+                    $"[RoundsMidJoin] HandleDisconnect owner-check threw: {ex}");
                 return;
             }
 
             Plugin.ModLogger.LogInfo(
                 "[RoundsMidJoin] Player disconnected during their card-pick turn — auto-resolving.");
 
-            CurrentPickingPlayer = null;
+            _currentPickingPlayer = null;
             DoAutoPick();
         }
 
