@@ -1,8 +1,12 @@
 # RoundsMidJoin
 
 A [BepInEx](https://thunderstore.io/c/rounds/p/BepInEx/BepInExPack_ROUNDS/) mod
-for the game **Rounds** that allows players to leave and rejoin mid-game without
+for the game **Rounds** that allows players to leave mid-game without
 ending the current session.
+
+## Current Limitations
+- If a player leaves when it is their time to select a card, the game will terminate.
+- If the host leaves, the game will terminate.
 
 ## Features
 
