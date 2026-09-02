@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections;
 using HarmonyLib;
 using Photon.Pun;
 using UnityEngine;
@@ -120,6 +121,17 @@ namespace RoundsMidJoin.Patches
         }
 
         /// <summary>
+        /// Once any pick resolves, clear the active picker marker so stale references
+        /// cannot trigger unrelated auto-pick logic later.
+        /// </summary>
+        [HarmonyPostfix]
+        [HarmonyPatch("Pick")]
+        private static void Pick_Postfix()
+        {
+            _currentPickingPlayer = null;
+        }
+
+        /// <summary>
         /// Called from <see cref="NetworkHandlerPatches"/> when a Photon player
         /// leaves the room.  If that player's card-pick turn is currently active
         /// (i.e. cards are already showing for them) the master client immediately
@@ -165,7 +177,35 @@ namespace RoundsMidJoin.Patches
 
             var spawnedCards = (List<GameObject>)SpawnedCardsField.GetValue(instance);
             if (spawnedCards != null && spawnedCards.Count > 0)
+            {
                 instance.Pick(spawnedCards[0], true);
+                return;
+            }
+
+            if (Plugin.Instance != null)
+                Plugin.Instance.StartCoroutine(DoAutoPickWhenCardsSpawn());
+        }
+
+        private static IEnumerator DoAutoPickWhenCardsSpawn()
+        {
+            const float timeoutSeconds = 2f;
+            float elapsed = 0f;
+
+            while (elapsed < timeoutSeconds)
+            {
+                var instance = CardChoice.instance;
+                if (instance == null) yield break;
+
+                var spawnedCards = (List<GameObject>)SpawnedCardsField.GetValue(instance);
+                if (spawnedCards != null && spawnedCards.Count > 0)
+                {
+                    instance.Pick(spawnedCards[0], true);
+                    yield break;
+                }
+
+                yield return null;
+                elapsed += Time.deltaTime;
+            }
         }
     }
 }

@@ -33,6 +33,7 @@ namespace RoundsMidJoin.Patches
         [HarmonyPatch("OnPlayerLeftRoom")]
         private static void OnPlayerLeftRoom_Prefix(Photon.Realtime.Player other)
         {
+            if (other == null) return;
             MidJoinManager.HandlePlayerLeft(other);
 
             // If this player was in the middle of their card-pick turn, auto-pick
@@ -48,6 +49,7 @@ namespace RoundsMidJoin.Patches
         [HarmonyPatch("OnPlayerEnteredRoom")]
         private static void OnPlayerEnteredRoom_Postfix(Photon.Realtime.Player newPlayer)
         {
+            if (newPlayer == null) return;
             MidJoinManager.HandlePlayerJoined(newPlayer);
         }
 

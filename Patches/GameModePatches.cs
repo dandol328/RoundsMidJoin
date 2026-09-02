@@ -77,6 +77,7 @@ namespace RoundsMidJoin.Patches
                 if (PlayerManager.instance != null &&
                     PlayerManager.instance.players.Contains(disconnected))
                 {
+                    MidJoinManager.RegisterRemovedUnityPlayer(disconnected);
                     PlayerManager.instance.players.Remove(disconnected);
                     Plugin.ModLogger.LogInfo(
                         $"[RoundsMidJoin] Removed disconnected player from PlayerManager. " +
@@ -111,6 +112,8 @@ namespace RoundsMidJoin.Patches
         private static void StartGame_Postfix()
         {
             MidJoinManager.ResetState();
+            MidJoinManager.MarkMatchStarted();
+            EnsureRoomAllowsJoins();
         }
 
         /// <summary>
@@ -122,6 +125,8 @@ namespace RoundsMidJoin.Patches
         [HarmonyPatch("StartRound")]
         private static void StartRound_Postfix()
         {
+            MidJoinManager.MarkMatchStarted();
+            EnsureRoomAllowsJoins();
             if (!MidJoinManager.HasPendingJoins) return;
 
             Plugin.ModLogger.LogInfo(
@@ -140,7 +145,7 @@ namespace RoundsMidJoin.Patches
 
             // Run all catch-up sessions one after the other so that concurrent
             // joiners never trigger overlapping CardChoice.StartPicking calls.
-            if (catchUpSessions.Count > 0)
+            if (catchUpSessions.Count > 0 && PhotonNetwork.IsMasterClient)
                 Plugin.Instance.StartCoroutine(RunAllCatchUpPicking(catchUpSessions));
         }
 
@@ -167,6 +172,19 @@ namespace RoundsMidJoin.Patches
             if (existing != null)
             {
                 existing.gameObject.SetActive(true);
+                if (PlayerManager.instance != null &&
+                    !PlayerManager.instance.players.Contains(existing))
+                {
+                    PlayerManager.instance.players.Add(existing);
+                }
+
+                try
+                {
+                    var actor = existing.data?.view?.Owner?.ActorNumber ?? -1;
+                    if (actor > 0)
+                        MidJoinManager.ForgetRemovedUnityPlayer(actor);
+                }
+                catch { }
 
                 int avgCards = MidJoinManager.GetAverageCardCount(excluding: existing);
                 int myCards  = MidJoinManager.GetCardCount(existing);
@@ -217,7 +235,7 @@ namespace RoundsMidJoin.Patches
                 $"[RoundsMidJoin] Catch-up picking started — " +
                 $"{cardsNeeded} card(s) for '{player.data.view.Owner?.NickName}'.");
 
-            const float PostPickDelaySeconds = 1.0f;
+            const float WaitTimeoutSeconds = 90f;
 
             for (int i = 0; i < cardsNeeded; i++)
             {
@@ -226,25 +244,65 @@ namespace RoundsMidJoin.Patches
                 Plugin.ModLogger.LogInfo(
                     $"[RoundsMidJoin] Auto-picking catch-up card {i + 1}/{cardsNeeded}.");
 
-                // Only the master client drives the pick so the RPC is sent once.
-                // A fixed delay is used here because CardChoice.currentPicker does not
-                // exist in the current game assembly, so polling for pick completion is
-                // not possible. 1 second is conservative enough for RPC propagation.
+                // Start a normal pick turn for this player and then wait for either:
+                // 1) the player to choose, or
+                // 2) timeout -> master auto-picks first card.
+                var instance = CardChoice.instance;
+                if (instance == null) break;
+                instance.StartPicking(player, cardsNeeded - i);
+
+                float elapsed = 0f;
+                bool picked = false;
+                while (elapsed < WaitTimeoutSeconds)
+                {
+                    instance = CardChoice.instance;
+                    if (instance == null)
+                    {
+                        picked = true;
+                        break;
+                    }
+
+                    var spawnedCards = (List<GameObject>)SpawnedCardsField.GetValue(instance);
+                    if (spawnedCards == null || spawnedCards.Count == 0)
+                    {
+                        picked = true;
+                        break;
+                    }
+
+                    yield return null;
+                    elapsed += Time.deltaTime;
+                }
+
                 if (PhotonNetwork.IsMasterClient)
                 {
                     var instance = CardChoice.instance;
                     if (instance != null)
                     {
                         var spawnedCards = (List<GameObject>)SpawnedCardsField.GetValue(instance);
-                        if (spawnedCards != null && spawnedCards.Count > 0)
+                        if (!picked && spawnedCards != null && spawnedCards.Count > 0)
                             instance.Pick(spawnedCards[0], true);
                     }
                 }
 
-                yield return new WaitForSeconds(PostPickDelaySeconds);
+                yield return null;
             }
 
             Plugin.ModLogger.LogInfo("[RoundsMidJoin] Catch-up card picking complete.");
+        }
+
+        /// <summary>
+        /// Ensures the current Photon room stays joinable so late-join events can
+        /// actually occur while a match is active.
+        /// </summary>
+        private static void EnsureRoomAllowsJoins()
+        {
+            if (!PhotonNetwork.IsMasterClient || PhotonNetwork.CurrentRoom == null)
+                return;
+
+            if (!PhotonNetwork.CurrentRoom.IsOpen)
+                PhotonNetwork.CurrentRoom.IsOpen = true;
+            if (!PhotonNetwork.CurrentRoom.IsVisible)
+                PhotonNetwork.CurrentRoom.IsVisible = true;
         }
     }
 }

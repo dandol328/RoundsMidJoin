@@ -22,6 +22,19 @@ namespace RoundsMidJoin
         /// <summary>Photon players who entered mid-game and are waiting to be added to a round.</summary>
         private static readonly Queue<Photon.Realtime.Player> _pendingJoins = new Queue<Photon.Realtime.Player>();
 
+        /// <summary>
+        /// Unity player objects removed from <see cref="PlayerManager.instance.players"/>
+        /// because of a disconnect, keyed by Photon actor number so they can be restored
+        /// if the same actor rejoins mid-match.
+        /// </summary>
+        private static readonly Dictionary<int, Player> _removedPlayersByActor = new Dictionary<int, Player>();
+
+        /// <summary>
+        /// True once a match has started; used to distinguish lobby joins from genuine
+        /// late joins during active gameplay.
+        /// </summary>
+        private static bool _matchInProgress;
+
         // ---------------------------------------------------------------------------
         // Public API
         // ---------------------------------------------------------------------------
@@ -47,9 +60,13 @@ namespace RoundsMidJoin
             Plugin.ModLogger.LogInfo(
                 $"[RoundsMidJoin] Player '{photonPlayer.NickName}' (actor #{photonPlayer.ActorNumber}) joined.");
 
-            // Treat a rejoining player as fully reconnected.
-            _disconnectedActors.Remove(photonPlayer.ActorNumber);
-            _pendingJoins.Enqueue(photonPlayer);
+            bool wasDisconnected = _disconnectedActors.Remove(photonPlayer.ActorNumber);
+            bool hasRemovedUnity = _removedPlayersByActor.ContainsKey(photonPlayer.ActorNumber);
+
+            // Always queue true rejoins (same actor returning) and queue genuine late
+            // joins only while a match is in progress.
+            if (wasDisconnected || hasRemovedUnity || _matchInProgress)
+                _pendingJoins.Enqueue(photonPlayer);
         }
 
         /// <summary>Returns true when the given Photon actor number belongs to a disconnected player.</summary>
@@ -83,8 +100,13 @@ namespace RoundsMidJoin
         {
             _disconnectedActors.Clear();
             _pendingJoins.Clear();
+            _removedPlayersByActor.Clear();
+            _matchInProgress = false;
             Plugin.ModLogger.LogInfo("[RoundsMidJoin] State reset for new game.");
         }
+
+        /// <summary>Marks a match as in-progress so late joins can be queued.</summary>
+        public static void MarkMatchStarted() => _matchInProgress = true;
 
         // ---------------------------------------------------------------------------
         // Pending-join helpers
@@ -119,7 +141,37 @@ namespace RoundsMidJoin
                 catch { /* null-safety — keep searching */ }
             }
 
+            if (_removedPlayersByActor.TryGetValue(photonPlayer.ActorNumber, out var removed))
+                return removed;
+
             return null;
+        }
+
+        /// <summary>
+        /// Remembers a disconnected Unity player so they can be restored if the same
+        /// Photon actor rejoins.
+        /// </summary>
+        public static void RegisterRemovedUnityPlayer(Player player)
+        {
+            if (player == null) return;
+            try
+            {
+                int actor = player.data?.view?.Owner?.ActorNumber ?? -1;
+                if (actor > 0)
+                    _removedPlayersByActor[actor] = player;
+            }
+            catch (Exception ex)
+            {
+                Plugin.ModLogger.LogWarning($"[RoundsMidJoin] Failed to register removed player: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Clears any cached removed-player entry for this Photon actor.
+        /// </summary>
+        public static void ForgetRemovedUnityPlayer(int actorNumber)
+        {
+            _removedPlayersByActor.Remove(actorNumber);
         }
 
         /// <summary>Number of players currently tracked as disconnected.</summary>
