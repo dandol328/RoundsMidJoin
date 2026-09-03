@@ -72,9 +72,9 @@ the round can advance without waiting for input that will never arrive.
 ### Mid-game joins
 
 Players who enter the Photon room while a match is already in progress are queued
-in `MidJoinManager`.  At the start of the next round the mod attempts to
-reactivate any existing Unity `Player` object for that actor, or logs that a full
-spawn is required (full spawn support is on the roadmap).
+in `MidJoinManager`.  At the start of the next round the mod restores any removed
+Unity `Player` object for that actor, reattaches it to `PlayerManager`, and runs
+catch-up picks to bring their card count in line with active players.
 
 ## Limitations / Roadmap
 
