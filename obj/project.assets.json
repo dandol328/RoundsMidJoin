@@ -1,7 +1,7 @@
 {
-  "version": 4,
+  "version": 3,
   "targets": {
-    "net472": {
+    ".NETFramework,Version=v4.7.2": {
       "Lib.Harmony/2.3.3": {
         "type": "package",
         "compile": {
@@ -468,7 +468,7 @@
     }
   },
   "projectFileDependencyGroups": {
-    "net472": [
+    ".NETFramework,Version=v4.7.2": [
       "Lib.Harmony >= 2.3.3",
       "Microsoft.NETFramework.ReferenceAssemblies >= 1.0.3"
     ]
@@ -493,11 +493,11 @@
         "net472"
       ],
       "sources": {
-        "https://api.nuget.org/v3/index.json": {}
+        "https://api.nuget.org/v3/index.json": {},
+        "https://nuget.bepinex.dev/v3/index.json": {}
       },
       "frameworks": {
         "net472": {
-          "framework": "net472",
           "targetAlias": "net472",
           "projectReferences": {}
         }
@@ -512,11 +512,10 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "10.0.400"
+      "SdkAnalysisLevel": "10.0.200"
     },
     "frameworks": {
       "net472": {
-        "framework": "net472",
         "targetAlias": "net472",
         "dependencies": {
           "Lib.Harmony": {
@@ -530,8 +529,46 @@
             "autoReferenced": true
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.400/RuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.201/RuntimeIdentifierGraph.json"
       }
     }
-  }
+  },
+  "logs": [
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json.\n  Resource temporarily unavailable (nuget.bepinex.dev:443)\n  Resource temporarily unavailable"
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json.\n  Resource temporarily unavailable (nuget.bepinex.dev:443)\n  Resource temporarily unavailable"
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json.\n  Resource temporarily unavailable (nuget.bepinex.dev:443)\n  Resource temporarily unavailable"
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json.\n  Resource temporarily unavailable (nuget.bepinex.dev:443)\n  Resource temporarily unavailable"
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json.\n  Resource temporarily unavailable (nuget.bepinex.dev:443)\n  Resource temporarily unavailable"
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json.\n  Resource temporarily unavailable (nuget.bepinex.dev:443)\n  Resource temporarily unavailable"
+    },
+    {
+      "code": "NU1900",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Error occurred while getting package vulnerability data: Unable to load the service index for source https://nuget.bepinex.dev/v3/index.json."
+    }
+  ]
 }
