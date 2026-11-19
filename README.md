@@ -71,16 +71,25 @@ distrobox enter rounds-build
 
 **2. Install the .NET SDK and Mono inside the container**
 
-The project targets `net472` (.NET Framework 4.7.2), so both the .NET SDK and
-Mono (which provides the Framework reference assemblies) are required.
+The project targets `net472` (.NET Framework 4.7.2). Install the .NET 10 SDK
+and Mono inside the container:
 
 ```sh
-# Fedora / RHEL
-sudo dnf install -y dotnet-sdk-8.0 mono-devel
+# Fedora
+sudo dnf install -y dotnet-sdk-10.0 mono-devel
 
 # Debian / Ubuntu
-sudo apt-get update && sudo apt-get install -y dotnet-sdk-8.0 mono-devel
+sudo apt-get update && sudo apt-get install -y dotnet-sdk-10.0 mono-devel
+
+# Verify the SDK installation
+dotnet --list-sdks
 ```
+
+Package availability depends on the container distribution and version. If the
+SDK package is unavailable, see Microsoft's installation instructions for
+[Debian](https://learn.microsoft.com/dotnet/core/install/linux-debian) or
+[Ubuntu](https://learn.microsoft.com/dotnet/core/install/linux-ubuntu).
+.NET 8 is no longer supported and may not be available in newer repositories.
 
 **3. Set `ROUNDS_PATH` to the game directory**
 
