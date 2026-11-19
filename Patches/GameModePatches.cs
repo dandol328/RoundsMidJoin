@@ -45,26 +45,26 @@ namespace RoundsMidJoin.Patches
         /// </summary>
         [HarmonyPrefix]
         [HarmonyPatch("PlayerDied")]
-        private static bool PlayerDied_Prefix(Player player, int __)
+        private static bool PlayerDied_Prefix(Player __0)
         {
-            if (!MidJoinManager.IsPlayerDisconnected(player))
+            if (!MidJoinManager.IsPlayerDisconnected(__0))
                 return true; // normal in-game death — let vanilla handle it
 
             Plugin.ModLogger.LogInfo(
                 "[RoundsMidJoin] Disconnected player's death event intercepted — " +
                 "scheduling removal instead of triggering win condition.");
 
-            // Schedule removal for the end of the frame to avoid mutating the
-            // players list while the game may be iterating it.
-            if (!_pendingRemoval.Contains(player))
-                _pendingRemoval.Add(player);
+            // Defer removal to the postfix so the prefix does not mutate the
+            // player list while the game's death callback is being entered.
+            if (!_pendingRemoval.Contains(__0))
+                _pendingRemoval.Add(__0);
 
             return false; // suppress the original method
         }
 
         /// <summary>
-        /// After the game-mode has finished processing a death, flush any players
-        /// that were scheduled for removal so subsequent checks use a clean list.
+        /// Flush disconnect removals after the prefix has intercepted the death
+        /// callback so subsequent checks use a clean player list.
         /// </summary>
         [HarmonyPostfix]
         [HarmonyPatch("PlayerDied")]
