@@ -1,8 +1,8 @@
 # RoundsMidJoin
 
 A [BepInEx](https://thunderstore.io/c/rounds/p/BepInEx/BepInExPack_ROUNDS/) mod
-for the game **Rounds** that allows players to leave and rejoin mid-game without
-ending the current session.
+for the game **Rounds** that allows players to leave and join while a match is
+in progress without locking the remaining players out.
 
 ## Features
 
@@ -10,8 +10,8 @@ ending the current session.
 |---|---|---|
 | Player disconnects during a round | Game session ends immediately | Round continues; disconnected player is removed gracefully |
 | Disconnected player's card-pick turn arrives | Card-selection freezes indefinitely | Master client auto-picks the first card on their behalf |
-| Master client disconnects | Host migration may break the session | Master migration is logged; new host takes over server duties |
-| Player joins mid-game | Not supported | Player is queued and reactivated / spawned at the next round start |
+| Master client disconnects | Host migration may break the session | Photon host migration remains available |
+| Player joins mid-game | Not supported | Player is network-spawned and activated at the next round |
 
 ## Requirements
 
@@ -58,31 +58,28 @@ The compiled DLL will appear in `bin/Release/net472/RoundsMidJoin.dll`.
 
 When `NetworkConnectionHandler.OnPlayerLeftRoom` fires, the mod registers the
 departing Photon actor number in `MidJoinManager` **before** any vanilla game
-logic runs.  The patched `GM_ArmsRace.PlayerDied` then detects that this player's
-"death" was caused by a disconnect and removes them from
-`PlayerManager.instance.players` at a safe point (after the current frame's
-iteration) instead of letting the game declare an erroneous winner.
+logic runs.  The player is removed from `PlayerManager.instance.players` after
+the Photon callback returns, so alive/team checks never retain a disconnected
+participant.
 
 ### Card-selection
 
-`CardChoice.StartPicking` is prefix-patched: if it's a disconnected player's
-turn, the master client immediately calls `CardChoice.Pick(0, sendRPC: true)` so
-the round can advance without waiting for input that will never arrive.
+`CardChoice.DoPlayerSelect` is prefix-patched: if its picker has disconnected,
+the master client selects the first available card and broadcasts the result so
+the selection phase cannot wait forever.
 
 ### Mid-game joins
 
 Players who enter the Photon room while a match is already in progress are queued
-in `MidJoinManager`.  At the start of the next round the mod restores any removed
-Unity `Player` object for that actor, reattaches it to `PlayerManager`, and runs
-catch-up picks to bring their card count in line with active players.
+in `MidJoinManager`.  The joining client uses the game's own `PlayerAssigner`
+network-spawn path, while all clients hold the new player out of the active round
+until `GM_ArmsRace.RoundTransition` activates them.  The host keeps the Photon
+room open and visible for Steam/Photon discovery and invites.
 
-## Limitations / Roadmap
+## Limitations
 
-- **Full mid-game spawn** — bringing a brand-new player into an ongoing match
-  requires spawning a character prefab over the network; this is game-mode-
-  specific and planned for a future release.
-- **Score adjustment** — round scores are not currently recalculated when a player
-  leaves.  The remaining players continue with the current point totals.
+- New players begin with no catch-up cards; they participate from the next round.
+- Score totals are not recalculated when a player leaves.
 
 ## License
 

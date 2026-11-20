@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.3.0] — 2026-11-19
+
+### Changed
+- Replaced stale `StartPicking` and `StartRound` hooks with the APIs present in
+  the installed ROUNDS assembly (`CardChoice.DoPlayerSelect`,
+  `PlayerAssigner.CreatePlayer`, and `GM_ArmsRace.RoundTransition`).
+- Removed disconnected players from `PlayerManager` after Photon leave callbacks
+  and auto-resolved their pending card picks.
+- Kept active Photon rooms open and visible so Steam/Photon joins can reach the
+  new-player creation path.
+
 ## [0.2.0] — 2026-04-19
 
 ### Added

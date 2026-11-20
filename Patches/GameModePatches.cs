@@ -1,308 +1,114 @@
-using System;
 using System.Collections;
-using System.Collections.Generic;
 using HarmonyLib;
 using Photon.Pun;
-using Photon.Realtime;
-using UnboundLib.GameModes;
 using UnityEngine;
 
 namespace RoundsMidJoin.Patches
 {
-    // =========================================================================
-    // GM_ArmsRace patches
-    // =========================================================================
-
-    /// <summary>
-    /// Patches for <c>GM_ArmsRace</c> — the primary Arms-Race game-mode class.
-    ///
-    /// Problem
-    /// -------
-    /// When a player disconnects, the game tries to process their "death" through
-    /// <c>GM_ArmsRace.PlayerDied</c>.  If this causes one team to have zero living
-    /// players the vanilla code immediately triggers a game-over for the remaining
-    /// team, even though both teams may still have connected players who want to
-    /// keep playing.
-    ///
-    /// Solution
-    /// --------
-    /// • Skip the vanilla <c>PlayerDied</c> path for a disconnected player: instead
-    ///   remove them from <c>PlayerManager.instance.players</c> (after the current
-    ///   loop is safe to modify) so all future checks ignore them.
-    /// • Let the normal path run for all genuinely-alive players, which preserves
-    ///   compatibility with vanilla scoring and with RoundsWithFriends team logic.
-    /// </summary>
     [HarmonyPatch(typeof(GM_ArmsRace))]
-    internal static class GM_ArmsRace_Patches
+    internal static class GM_ArmsRacePatches
     {
-        // Players scheduled for safe removal at the end of the current frame.
-        private static readonly List<Player> _pendingRemoval = new List<Player>();
-
-        /// <summary>
-        /// Intercepts the player-death handler for disconnected players.
-        /// Returns <c>false</c> (skip original) when the death was caused by a
-        /// network disconnect rather than in-game elimination.
-        /// </summary>
-        [HarmonyPrefix]
-        [HarmonyPatch("PlayerDied")]
-        private static bool PlayerDied_Prefix(Player __0)
-        {
-            if (!MidJoinManager.IsPlayerDisconnected(__0))
-                return true; // normal in-game death — let vanilla handle it
-
-            Plugin.ModLogger.LogInfo(
-                "[RoundsMidJoin] Disconnected player's death event intercepted — " +
-                "scheduling removal instead of triggering win condition.");
-
-            // Defer removal to the postfix so the prefix does not mutate the
-            // player list while the game's death callback is being entered.
-            if (!_pendingRemoval.Contains(__0))
-                _pendingRemoval.Add(__0);
-
-            return false; // suppress the original method
-        }
-
-        /// <summary>
-        /// Flush disconnect removals after the prefix has intercepted the death
-        /// callback so subsequent checks use a clean player list.
-        /// </summary>
-        [HarmonyPostfix]
-        [HarmonyPatch("PlayerDied")]
-        private static void PlayerDied_Postfix()
-        {
-            if (_pendingRemoval.Count == 0) return;
-
-            foreach (var disconnected in _pendingRemoval)
-            {
-                if (PlayerManager.instance != null &&
-                    PlayerManager.instance.players.Contains(disconnected))
-                {
-                    MidJoinManager.RegisterRemovedUnityPlayer(disconnected);
-                    PlayerManager.instance.players.Remove(disconnected);
-                    Plugin.ModLogger.LogInfo(
-                        $"[RoundsMidJoin] Removed disconnected player from PlayerManager. " +
-                        $"Remaining: {PlayerManager.instance.players.Count}");
-                }
-            }
-
-            _pendingRemoval.Clear();
-        }
-    }
-
-    // =========================================================================
-    // GameModeHandler patches  (base class shared by all game modes)
-    // =========================================================================
-
-    /// <summary>
-    /// Patches on the abstract <c>GameModeHandler</c> base class that are relevant
-    /// regardless of which concrete game mode is active.
-    /// </summary>
-    [HarmonyPatch("UnboundLib.GameModes.GameModeHandler")]
-    internal static class GameModeHandler_Patches
-    {
-        private static readonly System.Reflection.FieldInfo SpawnedCardsField =
-            AccessTools.Field(typeof(CardChoice), "spawnedCards");
-
-        /// <summary>
-        /// When a brand-new match starts, wipe all stale disconnect / pending-join
-        /// tracking so the previous session cannot contaminate the new one.
-        /// </summary>
         [HarmonyPostfix]
         [HarmonyPatch("StartGame")]
         private static void StartGame_Postfix()
         {
             MidJoinManager.ResetState();
-            MidJoinManager.MarkMatchStarted();
+            MidJoinManager.PublishMatchState(true);
             EnsureRoomAllowsJoins();
         }
 
-        /// <summary>
-        /// At the beginning of every new round, activate any players who joined
-        /// mid-game and kick off sequential catch-up card-picking sessions so each
-        /// late joiner can reach the average card level before participating.
-        /// </summary>
         [HarmonyPostfix]
-        [HarmonyPatch("StartRound")]
-        private static void StartRound_Postfix()
+        [HarmonyPatch("RoundTransition")]
+        private static void RoundTransition_Postfix()
         {
-            MidJoinManager.MarkMatchStarted();
-            EnsureRoomAllowsJoins();
-            if (!MidJoinManager.HasPendingJoins) return;
+            if (!MidJoinManager.IsMatchInProgress || Plugin.Instance == null)
+                return;
+
+            Plugin.Instance.StartCoroutine(ActivatePendingPlayers());
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch("ResetMatch")]
+        private static void ResetMatch_Postfix()
+        {
+            MidJoinManager.ResetState();
+            MidJoinManager.PublishMatchState(false);
+        }
+
+        [HarmonyPrefix]
+        [HarmonyPatch("PlayerJoined")]
+        private static bool PlayerJoined_Prefix(Player player)
+        {
+            if (player == null || !MidJoinManager.IsMatchInProgress)
+                return true;
+
+            int actorNumber = player.data?.view?.Owner?.ActorNumber ?? -1;
+            if (actorNumber <= 0 ||
+                !MidJoinManager.IsPendingActor(actorNumber) ||
+                MidJoinManager.IsActivating(actorNumber))
+            {
+                return true;
+            }
+
+            // The network object is registered immediately, but the game-mode
+            // participant is held out of the active round until the transition.
+            if (player.data != null)
+                player.data.isPlaying = false;
 
             Plugin.ModLogger.LogInfo(
-                "[RoundsMidJoin] Round started — processing pending mid-game joins.");
+                $"[RoundsMidJoin] Holding actor #{actorNumber} until the next round.");
+            return false;
+        }
 
-            // Activate every pending player and build the list of catch-up sessions.
-            var catchUpSessions = new List<(Player unityPlayer, int cardsNeeded)>();
-
+        private static IEnumerator ActivatePendingPlayers()
+        {
             while (MidJoinManager.HasPendingJoins)
             {
                 var photonPlayer = MidJoinManager.DequeuePendingJoin();
-                var (unityPlayer, cardsNeeded) = HandleMidGameJoin(photonPlayer);
-                if (unityPlayer != null && cardsNeeded > 0)
-                    catchUpSessions.Add((unityPlayer, cardsNeeded));
-            }
+                Player? unityPlayer = null;
 
-            // Run all catch-up sessions one after the other so that concurrent
-            // joiners never trigger overlapping CardChoice.StartPicking calls.
-            if (catchUpSessions.Count > 0 && PhotonNetwork.IsMasterClient)
-                Plugin.Instance.StartCoroutine(RunAllCatchUpPicking(catchUpSessions));
-        }
-
-        // -----------------------------------------------------------------
-        // Internal helpers
-        // -----------------------------------------------------------------
-
-        /// <summary>
-        /// Attempts to bring a late-joining Photon player into the current match.
-        ///
-        /// Returns the activated Unity <see cref="Player"/> and the number of
-        /// catch-up cards needed to reach the current average.  Both values are
-        /// <c>null</c> / <c>0</c> when the player could not be found or spawned.
-        /// </summary>
-        private static (Player? unityPlayer, int cardsNeeded) HandleMidGameJoin(
-            Photon.Realtime.Player photonPlayer)
-        {
-            Plugin.ModLogger.LogInfo(
-                $"[RoundsMidJoin] Handling mid-game join for '{photonPlayer.NickName}'.");
-
-            // If the Unity player object already exists (e.g. it was kept alive from
-            // a previous disconnect) simply mark them as active again.
-            var existing = MidJoinManager.FindUnityPlayer(photonPlayer);
-            if (existing != null)
-            {
-                existing.gameObject.SetActive(true);
-                if (PlayerManager.instance != null &&
-                    !PlayerManager.instance.players.Contains(existing))
+                for (int frame = 0; frame < 300 && unityPlayer == null; frame++)
                 {
-                    PlayerManager.instance.players.Add(existing);
+                    unityPlayer = MidJoinManager.FindUnityPlayer(photonPlayer);
+                    if (unityPlayer == null)
+                        yield return null;
                 }
 
+                if (unityPlayer == null)
+                {
+                    Plugin.ModLogger.LogWarning(
+                        $"[RoundsMidJoin] Timed out waiting for '{photonPlayer.NickName}' " +
+                        "to create a networked Player object.");
+                    continue;
+                }
+
+                int actorNumber = photonPlayer.ActorNumber;
+                MidJoinManager.BeginActivation(actorNumber);
                 try
                 {
-                    var actor = existing.data?.view?.Owner?.ActorNumber ?? -1;
-                    if (actor > 0)
-                        MidJoinManager.ForgetRemovedUnityPlayer(actor);
-                }
-                catch { }
+                    if (unityPlayer.data != null)
+                        unityPlayer.data.isPlaying = true;
 
-                int avgCards = MidJoinManager.GetAverageCardCount(excluding: existing);
-                int myCards  = MidJoinManager.GetCardCount(existing);
-                int catchUp  = Math.Max(0, avgCards - myCards);
+                    if (GM_ArmsRace.instance != null)
+                        GM_ArmsRace.instance.PlayerJoined(unityPlayer);
+                }
+                finally
+                {
+                    MidJoinManager.EndActivation(actorNumber);
+                }
 
                 Plugin.ModLogger.LogInfo(
-                    $"[RoundsMidJoin] Reactivated existing Unity Player. " +
-                    $"Catch-up: avg={avgCards}, current={myCards}, picks={catchUp}.");
-
-                return (existing, catchUp);
+                    $"[RoundsMidJoin] Activated '{photonPlayer.NickName}' for the new round.");
             }
-
-            // Full mid-game spawn (for brand-new players with no prior Unity Player
-            // object) requires Photon-network instantiation that is game-mode
-            // specific.  This remains a roadmap item.
-            Plugin.ModLogger.LogInfo(
-                $"[RoundsMidJoin] No existing Unity Player found for '{photonPlayer.NickName}' — " +
-                "full mid-game spawn not yet implemented (see roadmap).");
-
-            return (null, 0);
         }
 
-        /// <summary>
-        /// Runs all queued catch-up picking sessions one after the other so that
-        /// multiple simultaneous late joiners do not trigger concurrent
-        /// <c>CardChoice.StartPicking</c> calls.
-        /// </summary>
-        private static IEnumerator RunAllCatchUpPicking(
-            List<(Player unityPlayer, int cardsNeeded)> sessions)
-        {
-            foreach (var (player, cardsNeeded) in sessions)
-                yield return Plugin.Instance.StartCoroutine(
-                    DoCatchUpCardPickingCoroutine(player, cardsNeeded));
-        }
-
-        /// <summary>
-        /// Drives a sequential batch card-pick session for <paramref name="player"/>,
-        /// giving them <paramref name="cardsNeeded"/> picks via the existing
-        /// <c>CardChoice</c> system so that card effects (health, stats, etc.) are
-        /// applied identically to a normal post-round pick.
-        ///
-        /// Only the master client calls <c>Pick</c>; every other client sees
-        /// the result via the usual Photon RPC path.
-        /// </summary>
-        private static IEnumerator DoCatchUpCardPickingCoroutine(Player player, int cardsNeeded)
-        {
-            Plugin.ModLogger.LogInfo(
-                $"[RoundsMidJoin] Catch-up picking started — " +
-                $"{cardsNeeded} card(s) for '{player.data.view.Owner?.NickName}'.");
-
-            const float WaitTimeoutSeconds = 90f;
-
-            for (int i = 0; i < cardsNeeded; i++)
-            {
-                if (CardChoice.instance == null) break;
-
-                Plugin.ModLogger.LogInfo(
-                    $"[RoundsMidJoin] Auto-picking catch-up card {i + 1}/{cardsNeeded}.");
-
-                // Start a normal pick turn for this player and then wait for either:
-                // 1) the player to choose, or
-                // 2) timeout -> master auto-picks first card.
-                var instance = CardChoice.instance;
-                if (instance == null) break;
-                instance.StartPicking(player, cardsNeeded - i);
-
-                float elapsed = 0f;
-                bool picked = false;
-                while (elapsed < WaitTimeoutSeconds)
-                {
-                    instance = CardChoice.instance;
-                    if (instance == null)
-                    {
-                        picked = true;
-                        break;
-                    }
-
-                    var spawnedCards = (List<GameObject>)SpawnedCardsField.GetValue(instance);
-                    if (spawnedCards == null || spawnedCards.Count == 0)
-                    {
-                        picked = true;
-                        break;
-                    }
-
-                    yield return null;
-                    elapsed += Time.deltaTime;
-                }
-
-                if (PhotonNetwork.IsMasterClient)
-                {
-                    var instance = CardChoice.instance;
-                    if (instance != null)
-                    {
-                        var spawnedCards = (List<GameObject>)SpawnedCardsField.GetValue(instance);
-                        if (!picked && spawnedCards != null && spawnedCards.Count > 0)
-                            instance.Pick(spawnedCards[0], true);
-                    }
-                }
-
-                yield return null;
-            }
-
-            Plugin.ModLogger.LogInfo("[RoundsMidJoin] Catch-up card picking complete.");
-        }
-
-        /// <summary>
-        /// Ensures the current Photon room stays joinable so late-join events can
-        /// actually occur while a match is active.
-        /// </summary>
         private static void EnsureRoomAllowsJoins()
         {
             if (!PhotonNetwork.IsMasterClient || PhotonNetwork.CurrentRoom == null)
                 return;
 
-            if (!PhotonNetwork.CurrentRoom.IsOpen)
-                PhotonNetwork.CurrentRoom.IsOpen = true;
-            if (!PhotonNetwork.CurrentRoom.IsVisible)
-                PhotonNetwork.CurrentRoom.IsVisible = true;
+            PhotonNetwork.CurrentRoom.IsOpen = true;
+            PhotonNetwork.CurrentRoom.IsVisible = true;
         }
     }
 }

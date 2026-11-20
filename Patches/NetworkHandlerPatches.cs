@@ -1,70 +1,125 @@
+using System.Collections;
 using HarmonyLib;
+using Photon.Pun;
 using Photon.Realtime;
+using UnityEngine;
 
 namespace RoundsMidJoin.Patches
 {
-    /// <summary>
-    /// Patches for <c>NetworkConnectionHandler</c> — the class that implements
-    /// Photon's <c>IInRoomCallbacks</c> and dispatches join/leave events to the rest
-    /// of the game.
-    ///
-    /// Strategy
-    /// --------
-    ///  • <c>OnPlayerLeftRoom</c>  — register the departing actor as disconnected
-    ///    *before* any vanilla game logic runs.  This ensures that subsequent win-
-    ///    condition checks and death handlers can see the player is gone and handle
-    ///    them gracefully rather than triggering a premature game-over.
-    ///
-    ///  • <c>OnPlayerEnteredRoom</c> — queue the new player for mid-game join
-    ///    *after* the vanilla handler has finished registering them in Photon.
-    ///
-    ///  • <c>OnMasterClientSwitched</c> — log the switch so server-authoritative
-    ///    operations (e.g. auto-picking cards) are only run by the correct host.
-    /// </summary>
     [HarmonyPatch(typeof(NetworkConnectionHandler))]
     internal static class NetworkHandlerPatches
     {
-        /// <summary>
-        /// Runs *before* the game's own leave handler.
-        /// Registers the departing Photon player as disconnected so that game-mode
-        /// patches can make decisions based on this state.
-        /// </summary>
         [HarmonyPrefix]
         [HarmonyPatch("OnPlayerLeftRoom")]
         private static void OnPlayerLeftRoom_Prefix(Photon.Realtime.Player other)
         {
-            if (other == null) return;
+            if (other == null)
+                return;
+
+            var unityPlayer = MidJoinManager.FindUnityPlayer(other);
             MidJoinManager.HandlePlayerLeft(other);
 
-            // If this player was in the middle of their card-pick turn, auto-pick
-            // for them so the selection phase does not freeze.
-            CardChoicePatches.HandleDisconnect(other);
+            // Photon may destroy the remote Player object after this callback.
+            // Remove it from the game's registry first, so team/alive checks never
+            // retain a null or disconnected participant.
+            if (Plugin.Instance != null)
+                Plugin.Instance.StartCoroutine(RemovePlayerAfterCallback(unityPlayer));
         }
 
-        /// <summary>
-        /// Runs *after* the game's own join handler so the player is fully
-        /// registered before we enqueue them for mid-game insertion.
-        /// </summary>
         [HarmonyPostfix]
         [HarmonyPatch("OnPlayerEnteredRoom")]
         private static void OnPlayerEnteredRoom_Postfix(Photon.Realtime.Player newPlayer)
         {
-            if (newPlayer == null) return;
+            if (newPlayer == null)
+                return;
+
             MidJoinManager.HandlePlayerJoined(newPlayer);
+            EnsureRoomAllowsJoins();
         }
 
-        /// <summary>
-        /// Logs master-client migrations so we can confirm that the new host is
-        /// correctly taking over server-authoritative responsibilities (card auto-picks,
-        /// round advancement, etc.).
-        /// </summary>
         [HarmonyPostfix]
-        [HarmonyPatch("OnMasterClientSwitched")]
-        private static void OnMasterClientSwitched_Postfix(Photon.Realtime.Player newMasterClient)
+        [HarmonyPatch("OnJoinedRoom")]
+        private static void OnJoinedRoom_Postfix()
         {
+            MidJoinManager.RefreshMatchStateFromRoom();
+            if (!MidJoinManager.IsMatchInProgress)
+                return;
+
+            MidJoinManager.QueueLocalJoin();
+            if (Plugin.Instance != null)
+                Plugin.Instance.StartCoroutine(CreateLatePlayerWhenReady());
+        }
+
+        private static IEnumerator RemovePlayerAfterCallback(Player? player)
+        {
+            yield return null;
+
+            var manager = PlayerManager.instance;
+            if (manager == null || player == null)
+                yield break;
+
+            if (!manager.players.Contains(player))
+                yield break;
+
+            if (player.data != null)
+                player.data.isPlaying = false;
+
+            // Treat a disconnect as a non-lethal elimination.  The normal
+            // Arms-Race handler can then advance the round when the departing
+            // player was the last active member of their team, without ending
+            // the entire match.
+            if (PhotonNetwork.IsMasterClient &&
+                MidJoinManager.IsMatchInProgress &&
+                GM_ArmsRace.instance != null)
+            {
+                GM_ArmsRace.instance.PlayerDied(player, 0);
+            }
+
+            manager.RemovePlayer(player);
             Plugin.ModLogger.LogInfo(
-                $"[RoundsMidJoin] Master client switched to '{newMasterClient.NickName}' " +
-                $"(actor #{newMasterClient.ActorNumber}).");
+                "[RoundsMidJoin] Removed disconnected player from PlayerManager.");
+        }
+
+        private static IEnumerator CreateLatePlayerWhenReady()
+        {
+            for (int frame = 0; frame < 300; frame++)
+            {
+                if (!MidJoinManager.IsMatchInProgress)
+                    yield break;
+
+                var manager = PlayerManager.instance;
+                var local = PhotonNetwork.LocalPlayer;
+                if (manager != null && local != null &&
+                    MidJoinManager.FindUnityPlayer(local) != null)
+                    yield break;
+
+                var assigner = PlayerAssigner.instance;
+                if (assigner != null)
+                {
+                    // This is the game's normal networked player creation path.
+                    // CreatePlayer requests the player/team IDs from the master.
+                    var method = AccessTools.Method(
+                        typeof(PlayerAssigner), "CreatePlayer");
+                    var routine = method?.Invoke(
+                        assigner, new object[] { null!, false }) as IEnumerator;
+                    if (routine != null)
+                    {
+                        assigner.StartCoroutine(routine);
+                        yield break;
+                    }
+                }
+
+                yield return null;
+            }
+        }
+
+        private static void EnsureRoomAllowsJoins()
+        {
+            if (!PhotonNetwork.IsMasterClient || PhotonNetwork.CurrentRoom == null)
+                return;
+
+            PhotonNetwork.CurrentRoom.IsOpen = true;
+            PhotonNetwork.CurrentRoom.IsVisible = true;
         }
     }
 }

@@ -19,7 +19,7 @@
       to the BepInEx directory, e.g.:
         Linux (r2modmanPlus): /home/dan/.config/r2modmanPlus-local/ROUNDS/profiles/Stock/BepInEx
       Otherwise, BepInEx is assumed to be at $(ROUNDS_PATH)/BepInEx.
-    --><br/>
+    -->
     <RoundsPath Condition="'$(ROUNDS_PATH)' != ''">$(ROUNDS_PATH)</RoundsPath>
     <RoundsPath Condition="'$(RoundsPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Rounds</RoundsPath>
     <GameManagedPath>$(RoundsPath)/ROUNDS_Data/Managed</GameManagedPath>
@@ -55,6 +55,10 @@
       <HintPath>$(GameManagedPath)/PhotonUnityNetworking.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Photon3Unity3D">
+      <HintPath>$(GameManagedPath)/Photon3Unity3D.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
 
     <!-- Main game assembly -->
     <Reference Include="Assembly-CSharp">
@@ -85,7 +89,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Lib.Harmony" Version="2.3.3" />
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExCorePath)/0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
 </Project>

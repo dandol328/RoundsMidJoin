@@ -19,7 +19,7 @@ namespace RoundsMidJoin
     {
         public const string ModId      = "com.dandol328.rounds.midjoin";
         public const string ModName    = "RoundsMidJoin";
-        public const string ModVersion = "0.1.0";
+        public const string ModVersion = "0.3.0";
 
         internal static ManualLogSource ModLogger = null!;
         internal static Plugin          Instance  = null!;
@@ -39,7 +39,7 @@ namespace RoundsMidJoin
 
         private void OnDestroy()
         {
-            _harmony?.UnpatchAll(ModId);
+            _harmony?.UnpatchSelf();
         }
     }
 }
